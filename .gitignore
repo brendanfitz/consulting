@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# vs code workspace
+workspace.code-workspace
+
+# Program Data folder
+Program Data/
