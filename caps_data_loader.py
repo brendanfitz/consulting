@@ -16,15 +16,56 @@ import warnings
 
 class CAPsDataLoader(object):
 
-    EXECUTABLE_PATH = r'%s\Documents\chromedriver.exe' % os.path.expanduser('~')
-    dl_dir = r'%s\Downloads' % os.path.expanduser('~')
+    DOWNLOADS_DIR = os.path.join('Program Data')
     URL = r'http://mcdc.missouri.edu/applications/capsACS.html'
+    APP_DIR = os.path.expandvars(os.path.join('%APPDATA%', 'CAPS Data Loader'))
+    CHROMEDRIVER_SAVED_FILEPATH = os.path.join(APP_DIR,
+        'chrome_driver_location.txt'
+    )
 
     def __init__(self, filename, chromedriver_filename):
+        self.runtime = dt.datetime.now()
+        self.file_downloads_dir = os.path.join(
+            self.APP_DIR,
+            self.runtime.strftime('%Y-%m-%d'),
+            self.runtime.strftime('%H%M'),
+        )
+        os.makedirs(self.file_downloads_dir)
+
         self.filename = filename
-        if not os.path.isfile(self.EXECUTABLE_PATH):
+
+        self.create_directories()
+
+        if chromedriver_filename is not None:
+            self.chromedriver_filename = chromedriver_filename
+
+            with open(self.CHROMEDRIVER_SAVED_FILEPATH, 'w') as f:
+                f.write(self.chromedriver_filename)
+        elif os.path.isfile(self.CHROMEDRIVER_SAVED_FILEPATH):
+            self.chromedriver_filename = self.load_saved_chromedriver_filename()
+        else:
+            raise ValueError("Please provide chrome driver file")
+
+        if not os.path.isfile(self.chromedriver_filename):
             raise FileNotFoundError()
-        self.browser = webdriver.Chrome(executable_path=chromedriver_filename)
+
+        self.browser = webdriver.Chrome(executable_path=self.chromedriver_filename)
+
+
+    @classmethod
+    def create_directories(cls):
+        if not os.path.isdir(cls.APP_DIR):
+            os.mkdir(cls.APP_DIR)
+
+        if not os.path.isdir(cls.DOWNLOADS_DIR):
+            os.mkdir(cls.DOWNLOADS_DIR)
+        
+    @classmethod
+    def load_saved_chromedriver_filename(cls):
+        if os.path.isfile(cls.CHROMEDRIVER_SAVED_FILEPATH):
+            with open(cls.CHROMEDRIVER_SAVED_FILEPATH) as f:
+                saved_filepath = f.read()
+            return saved_filepath
 
     def fetch_data(self):
         df_cords = (pd.read_excel(self.filename, engine="openpyxl")
@@ -34,6 +75,8 @@ class CAPsDataLoader(object):
         try:
             for coordinates in coordinate_list:
                 self.download_caps_file(coordinates)
+        except Exception as e:
+            raise e
         finally:
             filename = self.compile_caps_files()
             self.browser.close()
@@ -41,7 +84,13 @@ class CAPsDataLoader(object):
     
     def compile_caps_files(self):
         csv_pat = re.compile(r'^capsACS.*\.csv$')
-        files = [self.dl_dir + r'\%s' % x for x in os.listdir(self.dl_dir) if csv_pat.match(x)]
+
+        files = list()
+        for filename in os.listdir(self.file_downloads_dir):
+            if csv_pat.match(filename):
+                filepath = os.path.join(self.file_downloads_dir, filename)
+                files.append(filepath)
+
         df_scrape = (pd.concat([pd.read_csv(x) for x in files])
             .pipe(self.split_cords)
             .rename(columns={'radius': 'Radius'})
@@ -49,7 +98,10 @@ class CAPsDataLoader(object):
         )
 
         timestamp = dt.datetime.now().isoformat()[0:-7].replace(':', '.')
-        out_fname = self.dl_dir + r'\CAPS Data_%s.xlsx' % timestamp
+        out_fname = os.path.join(
+            self.DOWNLOADS_DIR,
+            f'CAPS Data_{timestamp}.xlsx'
+        )
         df_scrape.to_excel(out_fname, merge_cells=False)
 
         for file in files:
@@ -70,11 +122,22 @@ class CAPsDataLoader(object):
     
         (self.browser.find_element_by_xpath('//*[@id="body"]/div/form/div/input[1]')
          .click())
-        time.sleep(5)
-    
-        (self.browser.find_element_by_xpath('//*[@id="body"]/p[1]/a')
-         .click())
-        time.sleep(5)
+        time.sleep(3)
+
+        file_download_btn = self.browser.find_element_by_xpath('//*[@id="body"]/p[1]/a')
+        file_download_btn.click()
+        time.sleep(3)
+
+        self.move_file_download(file_download_btn)
+
+    def move_file_download(self, file_download_btn):
+        filename = file_download_btn.get_property('href').split('/')[-1]
+        src_filepath = os.path.join(os.path.expanduser('~'),
+            'Downloads',
+            filename,
+        )
+        dest_filepath = os.path.join(self.file_downloads_dir, filename)
+        os.rename(src_filepath, dest_filepath)
     
     @staticmethod
     def get_coordinate_list(df):

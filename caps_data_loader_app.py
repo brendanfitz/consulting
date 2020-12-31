@@ -46,7 +46,7 @@ class RunFrame(tk.Frame):
         self.file_label, self.file_label_var = self.create_file_label()
         self.file_btn = self.create_file_button()
 
-        self.driver_filepath = None
+        self.driver_filepath = CAPsDataLoader.load_saved_chromedriver_filename()
         self.driver_file_label, self.driver_file_label_var = self.create_driver_file_label()
         self.driver_file_btn = self.create_driver_file_button()
 
@@ -63,7 +63,9 @@ class RunFrame(tk.Frame):
 
         file_label = tk.Label(self,
              textvariable=file_label_var,
-             width=self.LABEL_COLWIDTH
+             width=self.LABEL_COLWIDTH,
+             anchor="w",
+             justify=tk.LEFT,
         )
         file_label.configure(background="white")
 
@@ -79,12 +81,17 @@ class RunFrame(tk.Frame):
 
     def create_driver_file_label(self):
         driver_file_label_var = tk.StringVar()
+        if self.driver_filepath:
+            driver_file_label_var.set(self.driver_filepath)
 
         driver_file_label = tk.Label(self,
             textvariable=driver_file_label_var,
             width=self.LABEL_COLWIDTH,
+            anchor="w",
+            justify=tk.LEFT,
         )
         driver_file_label.configure(background="white")
+
 
         return driver_file_label, driver_file_label_var
     
@@ -102,14 +109,18 @@ class RunFrame(tk.Frame):
             title='Choose a file',
             filetype = (("Excel file","*.xlsx"),("Excel file", "*.xls")),
         )
-        self.file_label_var.set(textwrap.fill(self.filepath, self.LABEL_COLWIDTH - 2))
+        self.file_label_var.set(
+            textwrap.fill(self.filepath, self.LABEL_COLWIDTH + 10)
+        )
 
     def driver_file_dialog(self):
         self.driver_filepath = filedialog.askopenfilename(
             parent=self,
             title='Choose a file',
         )
-        self.driver_file_label_var.set(textwrap.fill(self.driver_filepath, self.LABEL_COLWIDTH - 2))
+        self.driver_file_label_var.set(
+            textwrap.fill(self.driver_filepath, self.LABEL_COLWIDTH + 10)
+        )
     
     
     def create_run_button(self):
