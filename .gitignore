@@ -133,3 +133,4 @@ workspace.code-workspace
 
 # Program Data folder
 Program Data/
+.vscode/
