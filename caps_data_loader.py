@@ -16,7 +16,7 @@ import warnings
 
 class CAPsDataLoader(object):
 
-    DOWNLOADS_DIR = os.path.join('Program Data')
+    DOWNLOADS_DIR = os.path.join(os.path.expanduser('~'), 'Downloads')
     URL = r'http://mcdc.missouri.edu/applications/capsACS.html'
     APP_DIR = os.path.expandvars(os.path.join('%APPDATA%', 'CAPS Data Loader'))
     CHROMEDRIVER_SAVED_FILEPATH = os.path.join(APP_DIR,
@@ -25,13 +25,6 @@ class CAPsDataLoader(object):
 
     def __init__(self, filename, chromedriver_filename):
         self.runtime = dt.datetime.now()
-        self.file_downloads_dir = os.path.join(
-            self.APP_DIR,
-            self.runtime.strftime('%Y-%m-%d'),
-            self.runtime.strftime('%H%M'),
-        )
-        os.makedirs(self.file_downloads_dir)
-
         self.filename = filename
 
         self.create_directories()
@@ -51,14 +44,19 @@ class CAPsDataLoader(object):
 
         self.browser = webdriver.Chrome(executable_path=self.chromedriver_filename)
 
+    def __del__(self):
+        for file in self.files:
+            os.remove(file)
 
-    @classmethod
-    def create_directories(cls):
-        if not os.path.isdir(cls.APP_DIR):
-            os.mkdir(cls.APP_DIR)
+        os.rmdir(self.file_downloads_dir)
 
-        if not os.path.isdir(cls.DOWNLOADS_DIR):
-            os.mkdir(cls.DOWNLOADS_DIR)
+    def create_directories(self):
+        self.file_downloads_dir = os.path.join(
+            self.APP_DIR,
+            self.runtime.strftime('%Y-%m-%d'),
+            self.runtime.strftime('%H%M'),
+        )
+        os.makedirs(self.file_downloads_dir)
         
     @classmethod
     def load_saved_chromedriver_filename(cls):
@@ -85,13 +83,13 @@ class CAPsDataLoader(object):
     def compile_caps_files(self):
         csv_pat = re.compile(r'^capsACS.*\.csv$')
 
-        files = list()
+        self.files = list()
         for filename in os.listdir(self.file_downloads_dir):
             if csv_pat.match(filename):
                 filepath = os.path.join(self.file_downloads_dir, filename)
-                files.append(filepath)
+                self.files.append(filepath)
 
-        df_scrape = (pd.concat([pd.read_csv(x) for x in files])
+        df_scrape = (pd.concat([pd.read_csv(x) for x in self.files])
             .pipe(self.split_cords)
             .rename(columns={'radius': 'Radius'})
             .set_index(['Longitude', 'Latitude', 'Radius'])
@@ -104,8 +102,6 @@ class CAPsDataLoader(object):
         )
         df_scrape.to_excel(out_fname, merge_cells=False)
 
-        for file in files:
-            os.remove(file)
         print('See file located at {:s}'.format(out_fname))
 
         return out_fname
